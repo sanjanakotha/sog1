@@ -116,7 +116,10 @@ def plot_all_tiles(merged_df, y_col, ax, color = 'red', center = True):
                  color = color)  
 
 # Input df where you have added all var positions to combinatorial and single
-def plot_combination_activities(start, ax, df_c, df_s):
+def plot_combination_activities(start, ax, df_c, df_s, var_str = "A"):
+    df_c["vars_str"] = df_c["vars"].astype(str)
+    df_c["var_count"] = df_c["vars_str"].str.count(",") + 1
+
     sog1_aa_features = pd.read_csv("../data/Sog1_AA_features.csv")
 
     single_tile_df = df_c[df_c["Start"] == start]    
@@ -190,7 +193,7 @@ def plot_combination_activities(start, ax, df_c, df_s):
             for i in range(len(tile_aas)):
                 if i + start + 1 in mut_aas:
                     #label += "$\\rightarrow$A"
-                    label += "A"
+                    label += var_str
                 else:
                     label += "-"
 
