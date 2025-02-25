@@ -115,12 +115,11 @@ def plot_all_tiles(merged_df, y_col, ax, color = 'red', center = True):
                   ax,
                  color = color)  
 
-# Input df where you have added all var positions to combinatorial and single
-def plot_combination_activities(start, ax, df_c, df_s, var_str = "A"):
+def create_combo_df(start, df_c, df_s):
     df_c["vars_str"] = df_c["vars"].astype(str)
     df_c["var_count"] = df_c["vars_str"].str.count(",") + 1
 
-    sog1_aa_features = pd.read_csv("../data/Sog1_AA_features.csv")
+    
 
     single_tile_df = df_c[df_c["Start"] == start]    
     
@@ -147,6 +146,42 @@ def plot_combination_activities(start, ax, df_c, df_s, var_str = "A"):
     activities_df.loc[activities_df['combo'] == "WT", 'count'] = 0
     activities_df = activities_df.sort_values(by = "count", ascending = True)
     activities_df = activities_df.reset_index(drop = True)
+    return activities_df
+
+
+def plot_labels(start, palette_dict, var_str, activities_df, ax, suffix = "", x = -25):
+    sog1_aa_features = pd.read_csv("../data/Sog1_AA_features.csv")
+    
+    for j in activities_df.index:
+        if j == 0:
+            label = ("".join(sog1_aa_features.iloc[start : start + 40]["aa"]))
+            color = palette_dict[0]
+    
+        else:
+            label = ""
+            tile_aas = list(sog1_aa_features.iloc[start : start + 40]["aa"])
+            mut_aas = activities_df["combo" + suffix].iloc[j]
+            #print(mut_aas)
+    
+            if isinstance(mut_aas, np.int64):
+                mut_aas = np.array([mut_aas])
+    
+    
+            for i in range(len(tile_aas)):
+                if i + start + 1 in mut_aas:
+                    #label += "$\\rightarrow$A"
+                    label += var_str
+                else:
+                    label += "-"
+    
+            color = palette_dict[activities_df["count" + suffix].loc[j]]
+        
+        ax.text(x, j, label, ha = "right", va = "center", font = "monospace", color = color, fontsize = "x-small")
+
+
+# Input df where you have added all var positions to combinatorial and single
+def plot_combination_activities(start, ax, df_c, df_s, var_str = "A"):
+    activities_df = create_combo_df(start, df_c, df_s)
     
     sns.set_context('talk')
 
@@ -159,7 +194,8 @@ def plot_combination_activities(start, ax, df_c, df_s, var_str = "A"):
     sns.set_style("dark")
 
     sns.barplot(data = activities_df, x = activity_col, y = "combo_str", hue = "count", legend = False, palette = palette_dict, edgecolor = "none", zorder = 2, ax = ax)
-    
+
+    plot_labels(start,palette_dict, var_str, activities_df, ax)
 
     ax.axhline(0.5, color = "white", linestyle = "-", zorder = 0)
     ax.axhline(3.5, color = "white", linestyle = "-", zorder = 0)
@@ -175,53 +211,6 @@ def plot_combination_activities(start, ax, df_c, df_s, var_str = "A"):
     
     ax.axvline(activities_df[activity_col].iloc[0], color = palette_dict[0], linestyle = "dotted", alpha = 0.5, zorder = 1, lw = 3)
 
-    for j in activities_df.index:
-        if j == 0:
-            label = ("".join(sog1_aa_features.iloc[start : start + 40]["aa"]))
-            color = palette_dict[0]
-
-        else:
-            label = ""
-            tile_aas = list(sog1_aa_features.iloc[start : start + 40]["aa"])
-            mut_aas = activities_df["combo"].iloc[j]
-            #print(mut_aas)
-
-            if isinstance(mut_aas, np.int64):
-                mut_aas = np.array([mut_aas])
-
-    
-            for i in range(len(tile_aas)):
-                if i + start + 1 in mut_aas:
-                    #label += "$\\rightarrow$A"
-                    label += var_str
-                else:
-                    label += "-"
-
-            color = palette_dict[activities_df["count"].loc[j]]
-        
-    
-            # if isinstance(mut_aas, np.int64):
-            #     mut_aas = np.array([mut_aas])
-    
-            
-            # for i in range(len(tile_aas)):
-            #     facecolor='white'
-            #     highlight = 'white'
-            #     AA = tile_aas[len(tile_aas) - 1 - i]
-            #     if type(mut_aas) == str:
-            #         color = "white"
-            #     elif i + start + 1 in mut_aas:
-            #         color = "black"
-            #         facecolor = 'red'
-            #         AA = "A"
-            #     else:
-            #         color = "white"
-                
-            #     plt.text(-1 * spacing * i - spacing * 1.5, j, AA, ha = "center", va = "center", color = color, fontsize = "small", bbox=dict(facecolor=facecolor, 
-            #                                                                                                                         alpha=1, 
-            #                                                                                                                         edgecolor = 'none', 
-            #                                                                                                                        pad = 0.2))
-        ax.text(-25, j, label, ha = "right", va = "center", font = "monospace", color = color, fontsize = "x-small")
 
     #ax.gca().tick_params(axis='y', labelleft=False)
     ax.tick_params(axis='y', labelleft=False)
