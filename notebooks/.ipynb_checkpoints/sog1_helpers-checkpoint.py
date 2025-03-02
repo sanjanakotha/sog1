@@ -22,21 +22,22 @@ activity_col = "Activity_S3_1"
 # Extracts position using regex passed in
 def return_activities(description, pos_regex = r'(\d+)_.*'):
     library = pd.read_csv("../data/visit2_seq_lib.csv", index_col = 0)    
-
     library_rows = library[library["Description"].str.contains(description)]
-    library_rows["Start"] = library_rows["Description"].str.extract(pos_regex).astype(int)
-    library_rows["Start"] = 10 * library_rows["Start"] - 9
-    library_rows.loc[library_rows['Start'] ==411, 'Start'] = 410
-    library_rows["mid"] = library_rows["Start"] + 20
-    library_rows["End"] = library_rows["Start"] + 40
-    library_rows["tile"] = library_rows["ProteinSeq"].astype(str).str.strip()
+
+    if pos_regex:
+        library_rows["Start"] = library_rows["Description"].str.extract(pos_regex).astype(int)
+        library_rows["Start"] = 10 * library_rows["Start"] - 9
+        library_rows.loc[library_rows['Start'] ==411, 'Start'] = 410
+        library_rows["mid"] = library_rows["Start"] + 20
+        library_rows["End"] = library_rows["Start"] + 40
+    library_rows["tile"] = library_rows["ProteinSeq"].astype(str).str.strip().str.upper()
     library_rows = library_rows.drop(columns = {"ProteinSeq"})
     
     activities = pd.read_csv("../data/Sog1_library2_activities_with_reads.csv")
     #activities = pd.read_csv("../data/Sog1_library2_activities_with_reads_ECspike.csv")
     #activities = pd.read_csv("../data/Sog1_library2_activities_with_reads_EC.csv")
     activities = activities.rename(columns = {"AAseq" : "tile"})
-    activities["tile"] = activities["tile"].astype(str).str.strip()
+    activities["tile"] = activities["tile"].astype(str).str.strip().str.upper()
       
     return pd.merge(library_rows, activities[["tile", "Activity_S3_1", "Activity_S3_2", "lib2_avg"]], on = "tile", how = "left")
 
@@ -73,7 +74,7 @@ def find_difference_indices(str1, str2, adjust = 0):
 
 # Adds index of first position that varies between var_df and corresponding sequence in ref_df
 # var_df and ref_df must share Start, mid, end columns
-def add_var_positions(var_df, ref_df, activity_col):
+def add_var_positions(var_df, ref_df, activity_col, add_AAs = False):
     merged = pd.merge(var_df, ref_df, on = ["Start", "mid", "End"], how = "left", suffixes = ("_var", "_wt"))
     diffs = []
     for i in merged.index:
@@ -84,11 +85,19 @@ def add_var_positions(var_df, ref_df, activity_col):
     merged["var"] = merged["var"] + merged["Start"]
     merged["activ_diff"] = merged[activity_col + "_var"] - merged[activity_col + "_wt"]
     merged["activ_fold_change"] = merged[activity_col + "_var"] / merged[activity_col + "_wt"]
+    
+    if add_AAs:
+        aas = []
+        for i in merged.index:
+            row = merged.iloc[i]
+            aas.append(row["tile_wt"][row["var"]-row["Start"]])
+        merged["AAs"] = aas
+            
     return merged
 
 # Adds all positions that vary between var_df and corresponding sequence in ref_df
 # var_df and ref_df must share Start, mid, end columns
-def add_all_var_positions(var_df, ref_df, activity_col):
+def add_all_var_positions(var_df, ref_df, activity_col, add_AAs = False):
     merged = pd.merge(var_df, ref_df, on = ["Start", "mid", "End"], how = "left", suffixes = ("_var", "_wt"))
     diffs = []
     for i in merged.index:
@@ -96,24 +105,36 @@ def add_all_var_positions(var_df, ref_df, activity_col):
                                         merged['tile_wt'].iloc[i],
                                             merged['Start'].iloc[i]))
 
+
     merged["vars"] = diffs
+    if add_AAs:
+        aas = []
+        for i in merged.index:
+            row = merged.iloc[i]
+            row_aas = []
+            for var in row["vars"]:
+                row_aas.append(row["tile_wt"][var-row["Start"]])
+            aas.append(row_aas)
+        merged["AAs"] = aas
+        
     return merged
 
 # Plots individual tile
-def plot_tile(start, end, activity, ax, color, center = True):
+def plot_tile(start, end, activity, ax, color, center = True, label = None, alpha = 1):
     ax.hlines(y=activity, xmin=start, xmax=end, color=color, lw = 1, alpha = 0.5, zorder = 0)
     if center:
-        sns.scatterplot(x = [(start + end) / 2], y = [activity], color = color, alpha = 1, ax = ax, s = 15, zorder = 1)
+        sns.scatterplot(x = [(start + end) / 2], y = [activity], color = color, ax = ax, s = 15, zorder = 1, label = label, edgecolor = 'none', alpha = alpha)
 
 # Plots all tiles
-def plot_all_tiles(merged_df, y_col, ax, color = 'red', center = True):
+def plot_all_tiles(merged_df, y_col, ax, color = 'red', center = True, label = None, alpha = 1):
     for i in merged_df.index:
         row = merged_df.loc[i]
         plot_tile(row["Start"],
                   row["End"],
                   row[y_col],
                   ax,
-                 color = color)  
+                 color = color, center = center, label = label,  alpha = alpha) 
+        label = None
 
 def create_combo_df(start, df_c, df_s):
     df_c["vars_str"] = df_c["vars"].astype(str)
