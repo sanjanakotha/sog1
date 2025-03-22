@@ -24,12 +24,18 @@ def return_activities(description, pos_regex = r'(\d+)_.*'):
     library = pd.read_csv("../data/visit2_seq_lib.csv", index_col = 0)    
     library_rows = library[library["Description"].str.contains(description)]
 
+    # if pos_regex:
+    #     library_rows["Start"] = library_rows["Description"].str.extract(pos_regex).astype(int)
+    #     library_rows["Start"] = 10 * library_rows["Start"] - 9
+    #     library_rows.loc[library_rows['Start'] ==411, 'Start'] = 410
+    #     library_rows["mid"] = library_rows["Start"] + 20
+    #     library_rows["End"] = library_rows["Start"] + 40
+
     if pos_regex:
-        library_rows["Start"] = library_rows["Description"].str.extract(pos_regex).astype(int)
-        library_rows["Start"] = 10 * library_rows["Start"] - 9
-        library_rows.loc[library_rows['Start'] ==411, 'Start'] = 410
+        library_rows["Start"] = library_rows["Start"].astype(int)
         library_rows["mid"] = library_rows["Start"] + 20
-        library_rows["End"] = library_rows["Start"] + 40
+        library_rows["End"] = library_rows["End"].astype(int)
+        
     library_rows["tile"] = library_rows["ProteinSeq"].astype(str).str.strip().str.upper()
     library_rows = library_rows.drop(columns = {"ProteinSeq"})
     
@@ -235,3 +241,27 @@ def plot_combination_activities(start, ax, df_c, df_s, var_str = "A"):
 
     #ax.gca().tick_params(axis='y', labelleft=False)
     ax.tick_params(axis='y', labelleft=False)
+
+from scipy.ndimage import gaussian_filter1d
+
+# Putting it all together in a func
+def return_avg_activities(name, pos_regex):
+    
+    # Load in the tiles
+    BasicArTh = return_activities(name, pos_regex = pos_regex)
+    
+    # Add ranges to use later for averaging
+    BasicArTh["range"] = [np.arange(s, e + 1) for s, e in zip(BasicArTh["Start"], 
+                                                          BasicArTh["End"])]
+
+    # Expand using range
+    BasicArTh = BasicArTh.explode("range").reset_index(drop = True)
+    avg_activities = BasicArTh[["range", "Activity_S3_1"]].groupby(["range"]).mean().reset_index()
+    avg_activities = avg_activities.reset_index(drop = True)
+    
+    # Gaussian smoothing
+    avg_activities["smoothed_avg_activity"] = gaussian_filter1d(
+            avg_activities["Activity_S3_1"], sigma=3  # Adjust 'sigma' for the smoothness
+        )
+    
+    return avg_activities
