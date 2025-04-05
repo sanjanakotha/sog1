@@ -39,7 +39,8 @@ def return_activities(description, pos_regex = r'(\d+)_.*'):
     library_rows["tile"] = library_rows["ProteinSeq"].astype(str).str.strip().str.upper()
     library_rows = library_rows.drop(columns = {"ProteinSeq"})
     
-    activities = pd.read_csv("../data/Sog1_library2_activities_with_reads.csv")
+    #activities = pd.read_csv("../data/Sog1_library2_activities_with_reads.csv")
+    activities = pd.read_csv("../output/Sog1_library2_activities_with_reads_SK.csv")
     #activities = pd.read_csv("../data/Sog1_library2_activities_with_reads_ECspike.csv")
     #activities = pd.read_csv("../data/Sog1_library2_activities_with_reads_EC.csv")
     activities = activities.rename(columns = {"AAseq" : "tile"})
