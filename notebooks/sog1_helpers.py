@@ -40,13 +40,17 @@ def return_activities(description, pos_regex = r'(\d+)_.*'):
     library_rows = library_rows.drop(columns = {"ProteinSeq"})
     
     #activities = pd.read_csv("../data/Sog1_library2_activities_with_reads.csv")
-    activities = pd.read_csv("../output/Sog1_library2_activities_with_reads_SK.csv")
+    activities = pd.read_csv("../output/Sog1_library2_activities_with_reads_errors_SK.csv")
     #activities = pd.read_csv("../data/Sog1_library2_activities_with_reads_ECspike.csv")
     #activities = pd.read_csv("../data/Sog1_library2_activities_with_reads_EC.csv")
     activities = activities.rename(columns = {"AAseq" : "tile"})
     activities["tile"] = activities["tile"].astype(str).str.strip().str.upper()
-      
-    return pd.merge(library_rows, activities[["tile", "Activity_S3_1", "Activity_S3_2", "lib2_avg"]], on = "tile", how = "left")
+    activities["activ_err_start"] = activities["Activity_S3_1"] - activities["weighted_std"]
+    activities["activ_err_end"] = activities["Activity_S3_1"] + activities["weighted_std"]
+
+    return pd.merge(library_rows, activities[["tile", "Activity_S3_1", "Activity_S3_2", 
+                                              "lib2_avg", "unweighted_std", "weighted_std",
+                                              "activ_err_start", "activ_err_end"]], on = "tile", how = "left")
 
 # Returns index of first difference between two strings
 def find_difference_index(str1, str2):
@@ -79,6 +83,10 @@ def find_difference_indices(str1, str2, adjust = 0):
         
     return diff_indices if diff_indices else None  # Return None if no differences are found
 
+# https://stackoverflow.com/questions/2953967/built-in-function-for-computing-overlap-in-python
+def significant(a, b):
+    return not bool(max(0, min(a[1], b[1]) - max(a[0], b[0])))
+
 # Adds index of first position that varies between var_df and corresponding sequence in ref_df
 # var_df and ref_df must share Start, mid, end columns
 def add_var_positions(var_df, ref_df, activity_col, add_AAs = False):
@@ -93,6 +101,8 @@ def add_var_positions(var_df, ref_df, activity_col, add_AAs = False):
     merged["activ_diff"] = merged[activity_col + "_var"] - merged[activity_col + "_wt"]
     merged["activ_fold_change"] = merged[activity_col + "_var"] / merged[activity_col + "_wt"]
     
+    merged["signif_diff"] = merged.apply(lambda row: significant((row["activ_err_start_var"], row["activ_err_end_var"]),      
+                                                            (row["activ_err_start_wt"], row["activ_err_end_wt"])), axis = 1)
     if add_AAs:
         aas = []
         for i in merged.index:
