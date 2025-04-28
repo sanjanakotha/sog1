@@ -18,7 +18,7 @@ plt.rcParams['pdf.fonttype'] = 42
 
 activity_col = "Activity_S3_1"
 
-# Returns EC spike activities using the description column
+# Returns SK activities using the description column
 # Extracts position using regex passed in
 def return_activities(description, pos_regex = r'(\d+)_.*'):
     library = pd.read_csv("../data/visit2_seq_lib.csv", index_col = 0)    
@@ -40,17 +40,25 @@ def return_activities(description, pos_regex = r'(\d+)_.*'):
     library_rows = library_rows.drop(columns = {"ProteinSeq"})
     
     #activities = pd.read_csv("../data/Sog1_library2_activities_with_reads.csv")
-    activities = pd.read_csv("../output/Sog1_library2_activities_with_reads_errors_SK.csv")
+    #activities = pd.read_csv("../output/Sog1_library2_activities_with_reads_errors_SK.csv")
     #activities = pd.read_csv("../data/Sog1_library2_activities_with_reads_ECspike.csv")
     #activities = pd.read_csv("../data/Sog1_library2_activities_with_reads_EC.csv")
-    activities = activities.rename(columns = {"AAseq" : "tile"})
-    activities["tile"] = activities["tile"].astype(str).str.strip().str.upper()
-    activities["activ_err_start"] = activities["Activity_S3_1"] - activities["weighted_std"]
-    activities["activ_err_end"] = activities["Activity_S3_1"] + activities["weighted_std"]
 
-    return pd.merge(library_rows, activities[["tile", "Activity_S3_1", "Activity_S3_2", 
-                                              "lib2_avg", "unweighted_std", "weighted_std",
-                                              "activ_err_start", "activ_err_end"]], on = "tile", how = "left")
+    activities = pd.read_csv("../output/SK_recalc_scores.csv")
+
+    activities = activities.rename(columns = {"ProteinSeq" : "tile"})
+    activities["tile"] = activities["tile"].astype(str).str.strip().str.upper()
+    # activities["activ_err_start"] = activities["Activity_S3_1"] - activities["unweighted_std"]
+    # activities["activ_err_end"] = activities["Activity_S3_1"] + activities["unweighted_std"]
+
+    activities["activ_err_start"] = activities["Activity_S3_1"] - activities["Error"]
+    activities["activ_err_end"] = activities["Activity_S3_1"] + activities["Error"]
+
+    # return pd.merge(library_rows, activities[["tile", "Activity_S3_1",
+    #                                           "lib2_avg", "unweighted_std", "weighted_std",
+    #                                           "activ_err_start", "activ_err_end"]], on = "tile", how = "left")
+
+    return pd.merge(library_rows, activities, on = "tile", how = "left")
 
 # Returns index of first difference between two strings
 def find_difference_index(str1, str2):
@@ -90,19 +98,27 @@ def significant(a, b):
 # Adds index of first position that varies between var_df and corresponding sequence in ref_df
 # var_df and ref_df must share Start, mid, end columns
 def add_var_positions(var_df, ref_df, activity_col, add_AAs = False):
+    for col in ["Start", "mid", "End"]:
+        var_df[col] = var_df[col].astype(int)
+        ref_df[col] = ref_df[col].astype(int)
+
     merged = pd.merge(var_df, ref_df, on = ["Start", "mid", "End"], how = "left", suffixes = ("_var", "_wt"))
+    
     diffs = []
     for i in merged.index:
         diffs.append(find_difference_index(merged['tile_var'].iloc[i], 
                                         merged['tile_wt'].iloc[i]))
 
+
     merged["var"] = diffs
-    merged["var"] = merged["var"] + merged["Start"]
+    #merged["var"] = merged["var"].astype(int)
+    merged["var"] = merged["var"] + merged["Start"].astype(int)
     merged["activ_diff"] = merged[activity_col + "_var"] - merged[activity_col + "_wt"]
     merged["activ_fold_change"] = merged[activity_col + "_var"] / merged[activity_col + "_wt"]
-    
     merged["signif_diff"] = merged.apply(lambda row: significant((row["activ_err_start_var"], row["activ_err_end_var"]),      
                                                             (row["activ_err_start_wt"], row["activ_err_end_wt"])), axis = 1)
+
+
     if add_AAs:
         aas = []
         for i in merged.index:
@@ -157,8 +173,6 @@ def create_combo_df(start, df_c, df_s):
     df_c["vars_str"] = df_c["vars"].astype(str)
     df_c["var_count"] = df_c["vars_str"].str.count(",") + 1
 
-    
-
     single_tile_df = df_c[df_c["Start"] == start]    
     
     all_row = single_tile_df[single_tile_df["var_count"] == 3]
@@ -167,18 +181,22 @@ def create_combo_df(start, df_c, df_s):
     # Trio + pairs
     var_combo = list(single_tile_df["vars"])
     activities = list(single_tile_df[activity_col + "_var"])
+    errors = list(single_tile_df["Error_var"])
 
     # Singles 
     for var in tile_vars:
         row = df_s[(df_s["var"] == var) & (df_s["Start"] == start)]
         var_combo.append(row["var"].iloc[0])
         activities.append(row[activity_col + "_var"].iloc[0])
+        errors.append(row["Error_var"].iloc[0])
     
     var_combo.append("WT")
     activities.append(single_tile_df[activity_col + "_wt"].iloc[0])
-        
+    errors.append(single_tile_df["Error_wt"].iloc[0])
+
     activities_df = pd.DataFrame({"combo" : var_combo,
-                  activity_col : activities})
+                  activity_col : activities,
+                  "Error" : errors})
     activities_df["count"] = activities_df["combo"].astype(str).str.count(",") + 1
     activities_df["combo_str"] = activities_df["combo"].astype(str)
     activities_df.loc[activities_df['combo'] == "WT", 'count'] = 0
