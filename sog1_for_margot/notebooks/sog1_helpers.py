@@ -43,7 +43,7 @@ def return_activities(description, activity_file_path="../output/SK_recalc_score
     activities = pd.read_csv(activity_file_path)
     activities = activities.rename(columns={"ProteinSeq": "tile"})
     activities["tile"] = activities["tile"].str.strip().str.upper()
-
+    
     if "Error" in activities.columns:
         activities["activ_err_start"] = activities["Activity_S3_1"] - activities["Error"]
         activities["activ_err_end"] = activities["Activity_S3_1"] + activities["Error"]
